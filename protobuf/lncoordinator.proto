@@ -1,0 +1,240 @@
+syntax = "proto3";
+
+package protobuf;
+
+option go_package = "github.com/offerm/lnagent/protobuf";
+service coordinator {
+ rpc StatusUpdate(StatusUpdateRequest) returns (StatusUpdateResponse) {}
+ rpc Tasks(stream TaskResponse) returns (stream Task) {}
+}
+
+message ChannelConstraints {
+    /*
+    The CSV delay expressed in relative blocks. If the channel is force closed,
+    we will need to wait for this many blocks before we can regain our funds.
+    */
+    uint32 csv_delay = 1;
+
+    // The minimum satoshis this node is required to reserve in its balance.
+    uint64 chan_reserve_sat = 2;
+
+    // The dust limit (in satoshis) of the initiator's commitment tx.
+    uint64 dust_limit_sat = 3;
+
+    // The maximum amount of coins in millisatoshis that can be pending in this
+    // channel.
+    uint64 max_pending_amt_msat = 4;
+
+    // The smallest HTLC in millisatoshis that the initiator will accept.
+    uint64 min_htlc_msat = 5;
+
+    // The total number of incoming HTLC's that the initiator will accept.
+    uint32 max_accepted_htlcs = 6;
+}
+
+message Channel {
+    // Whether this channel is active or not
+    bool active = 1;
+
+    // The identity pubkey of the remote node
+    string remote_pubkey = 2;
+
+    /*
+    The outpoint (txid:index) of the funding transaction. With this value, Bob
+    will be able to generate a signature for Alice's version of the commitment
+    transaction.
+    */
+    string channel_point = 3;
+
+    /*
+    The unique channel ID for the channel. The first 3 bytes are the block
+    height, the next 3 the index within the block, and the last 2 bytes are the
+    output index for the channel.
+    */
+    uint64 chan_id = 4 [jstype = JS_STRING];
+
+    // The total amount of funds held in this channel
+    int64 capacity = 5;
+
+    // This node's current balance in this channel
+    int64 local_balance = 6;
+
+    // The counterparty's current balance in this channel
+    int64 remote_balance = 7;
+
+    /*
+    The amount calculated to be paid in fees for the current set of commitment
+    transactions. The fee amount is persisted with the channel in order to
+    allow the fee amount to be removed and recalculated with each channel state
+    update, including updates that happen after a system restart.
+    */
+    int64 commit_fee = 8;
+
+    // The weight of the commitment transaction
+    int64 commit_weight = 9;
+
+    /*
+    The required number of satoshis per kilo-weight that the requester will pay
+    at all times, for both the funding transaction and commitment transaction.
+    This value can later be updated once the channel is open.
+    */
+    int64 fee_per_kw = 10;
+
+    // The unsettled balance in this channel
+    int64 unsettled_balance = 11;
+
+    /*
+    Deprecated. The CSV delay expressed in relative blocks. If the channel is
+    force closed, we will need to wait for this many blocks before we can regain
+    our funds.
+    */
+    uint32 csv_delay = 16 [deprecated = true];
+
+    // Whether this channel is advertised to the network or not.
+    bool private = 17;
+
+    // A set of flags showing the current state of the channel.
+    string chan_status_flags = 19;
+
+
+    // List constraints for the local node.
+    ChannelConstraints local_constraints = 29;
+
+    // List constraints for the remote node.
+    ChannelConstraints remote_constraints = 30;
+
+    // The base fee charged regardless of the number of milli-satoshis sent.
+    int64 base_fee_msat = 31;
+
+    // The amount charged per milli-satoshis transferred expressed in
+    // millionths of a satoshi.
+    int64 fee_per_mil = 32;
+
+    // The effective fee rate in milli-satoshis. Computed by dividing the
+    // fee_per_mil value by 1 million.
+    double fee_rate = 33;
+}
+
+message StatusUpdateRequest {
+    // public key of the node sedning the message
+    string pubkey = 2;
+
+    // signature of Channels message include in this StatusUpdate. Must be signed by the sendng pubkey
+    string status_signature = 3;
+
+    // re-balance budget expressed as percentage [0-100]. The actual budget is calculated as a multiply of
+    // the number of sats being rebalanced divided 1M by the channel routing PPM and by the percentage.
+    // For example, if 2M sats are being rebalanced, the channel PPM (fee_per_mil) is 90 and the percentage is 40%
+    // the calculated budget is 74 sats (2M/1M*90*40%). The budget is earned by the ln-coordinator and may also be
+    // used to pay nodes for routing services
+    double rebalance_budget_ppm_percent = 4;
+
+    // channel_rebalanbce_low_trigger and channel_rebalanbce_high_trigger define the points at which the channel
+    // become rebalance candidate. The value is expressed as percentage [0-100].
+    // The actual value is calculated by dividing the local balance by the channel capacity and multiply by 100.0
+    // if the actual value is below the channel_rebalanbce_low_trigger or above channel_rebalanbce_high_trigger the
+    // ln-coordinator will try to rebalance the channel with the allowed budget
+    double channel_rebalanbce_low_trigger = 5;
+    double channel_rebalanbce_high_trigger = 6;
+
+    // channel_rebalance_target defines a target percentage for the rebalance.  The actual is calculated as local balance
+    // divided by channel capacity times 100.0 .
+    // Rebalance target must be between channel_rebalanbce_low_trigger and channel_rebalanbce_high_trigger.
+    // example: a channel of 10M sats. Current local is 1M. Low is 20%. Target is 50%. channel's ppm is 90. budget is 40%:
+    // the ln-coordinator will attempt to rebalance 4M sats (from remote to local) while using a budget of 144 sats.
+    double channel_rebalance_target = 7;
+
+    repeated Channel channels = 1;
+}
+
+message StatusUpdateResponse {
+}
+
+
+message Payment{
+    // The public key of the peer in this payment
+    bytes   peer_pub_key = 1;
+    // The channelId for this payment
+    uint64  chan_id = 2;
+    // The amount of msat for this payment
+    uint64  amt_msat = 3;
+    // The amount of msat to pay for this payment fee
+    uint64  fee_msat = 4;
+    // The time lock for this payment
+    uint32  time_lock = 5;
+}
+
+
+message Task {
+    enum Role {
+        INITIATOR = 0;
+        FOLLOWER  = 1;
+    }
+
+    /* Init is sent to each agent in the rebalance cycle.
+       Each agent but the initiator accepts the payment_request that it should use for payment.
+       The initiator accepts the payment request with the Swap Task
+     */
+    message Init {
+        Role role = 1;
+        Payment from = 2;
+        Payment to = 3;
+        string payment_request = 4;
+    }
+
+    /* Swap is sent only to the initiator */
+    message Swap {
+        string payment_request = 1;
+    }
+
+    message Cancel {
+        string reason = 1;
+
+    }
+
+    string swap_ID = 1;
+    string pubkey = 5;
+    oneof type {
+        Init init_type = 2;
+        Swap swap_type = 3;
+        Cancel cancel_type = 4;
+    }
+}
+
+message TaskResponse{
+    message Init_Done {
+        string payment_request = 1;
+    }
+    message Payment_Initiated {
+
+    }
+    message Cancel_Done {
+
+    }
+    message Payment_Locked {
+
+    }
+    message Payment_Settled {
+
+    }
+    message Swap_Done {
+
+    }
+
+
+    message Error {
+        string error = 1;
+    }
+    string swap_ID = 1;
+    string pubkey = 9;
+    string msg_signature = 10;
+    oneof response {
+        Init_Done init_done_type = 2;
+        Payment_Initiated payment_initiated_type = 3;
+        Cancel_Done cancel_done_type = 4;
+        Error error_type = 5;
+        Payment_Locked payment_locked_type = 6;
+        Payment_Settled payment_settled_type = 7;
+        Swap_Done swap_done_type = 8;
+    }
+}

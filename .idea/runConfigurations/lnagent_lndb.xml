@@ -1,0 +1,12 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="lnagent-lndb" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="lnagent" />
+    <working_directory value="$PROJECT_DIR$" />
+    <parameters value="run --lnd-dir ~/lnd/lndb --network testnet --ln-port 10011 --lnc-host localhost" />
+    <kind value="FILE" />
+    <package value="lnagent" />
+    <directory value="$PROJECT_DIR$/" />
+    <filePath value="$PROJECT_DIR$/cmd/lnagent/main.go" />
+    <method v="2" />
+  </configuration>
+</component>
