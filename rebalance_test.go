@@ -13,32 +13,14 @@ import (
 )
 
 func TestCycle(t *testing.T) {
-	agentA := NewAgent(nil, &lightning.Config{
-		Host:           "localhost",
-		Port:           10010,
-		Network:        "testnet",
-		Implementation: "",
-		DataDir:        "~/lnd/lnda",
-	})
-	//agentA.Start(agentA, agentA.lnsdkConfig)
+	serviceA := lightning.NewMockService(&lightning.Config{})
+	agentA := NewAgent(nil, serviceA)
 
-	agentB := NewAgent(nil, &lightning.Config{
-		Host:           "localhost",
-		Port:           10011,
-		Network:        "testnet",
-		Implementation: "",
-		DataDir:        "~/lnd/lndb",
-	})
-	//agentB.Start(agentB, agentB.lnsdkConfig)
+	serviceB := lightning.NewMockService(&lightning.Config{})
+	agentB := NewAgent(nil, serviceB)
 
-	agentC := NewAgent(nil, &lightning.Config{
-		Host:           "localhost",
-		Port:           10012,
-		Network:        "testnet",
-		Implementation: "",
-		DataDir:        "~/lnd/lndc",
-	})
-	//agentC.Start(agentC, agentC.lnsdkConfig)
+	serviceC := lightning.NewMockService(&lightning.Config{})
+	agentC := NewAgent(nil, serviceC)
 
 	pubkeyA, _ := hex.DecodeString("02aeb304f6282f6ab93bf1b7cfdf0a7e842ccef33455f201484cc3a3d316edabb7")
 	pubkeyB, _ := hex.DecodeString("02b998d8c3f065f3e0a8b383bd00dff56aeeac05c52ea2b7a5c936ff8ab2fb369a")
