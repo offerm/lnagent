@@ -67,7 +67,7 @@ func runCmd(ctx *cli.Context) error {
 		TorActive:          ctx.Bool(utils.TorActiveFlag.Name),
 		TorSocks:           ctx.String(utils.TorSocksFlag.Name),
 	}
-
-	agent := lnagent.NewAgent(lnagentConfig, lnConfig)
+	lnService := lightning.NewService(lnConfig)
+	agent := lnagent.NewAgent(lnagentConfig, lnService)
 	return agent.Run()
 }

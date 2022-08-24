@@ -15,9 +15,7 @@ import (
 
 // TODO: handle cleanup on startup
 type agent struct {
-	//lnsdk.Service
 	lnagentConfig *Config
-	lnConfig      *lightning.Config
 	lnService     lightning.Service
 	rebalancer    *rebalancer.Rebalancer
 
@@ -26,14 +24,13 @@ type agent struct {
 	events chan *protobuf.TaskResponse
 }
 
-func NewAgent(lnagentConfig *Config, lnConfig *lightning.Config) *agent {
+func NewAgent(lnagentConfig *Config, lnService lightning.Service) *agent {
 	agent := &agent{
 		lnagentConfig: lnagentConfig,
-		lnConfig:      lnConfig,
 		events:        make(chan *protobuf.TaskResponse, 100),
 	}
 
-	agent.lnService = lightning.NewService(lnConfig)
+	agent.lnService = lnService
 
 	agent.rebalancer = rebalancer.NewRebalancer(agent.events, agent.lnService)
 
@@ -42,8 +39,7 @@ func NewAgent(lnagentConfig *Config, lnConfig *lightning.Config) *agent {
 
 // Run execute the agent
 func (agent *agent) Run() error {
-	log.Infof("agent is starting for %v %v %v %v",
-		agent.lnConfig.Network, agent.lnConfig.Host, agent.lnConfig.Port, agent.lnConfig.DataDir)
+	log.Info("agent is starting")
 
 	conn := GetLNCClientConn(agent.lnagentConfig)
 	agent.coordinatorClient = protobuf.NewCoordinatorClient(conn)
