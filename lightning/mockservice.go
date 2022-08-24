@@ -32,20 +32,11 @@ func init() {
 }
 
 func (ms *mockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.PayReq, error) {
+	pd := payReqToPayData[payReqString.PayReq]
 	return &lnrpc.PayReq{
-		Destination:     "",
-		PaymentHash:     payReqToPayData[payReqString.PayReq].hash,
-		NumSatoshis:     0,
-		Timestamp:       0,
-		Expiry:          0,
-		Description:     "",
-		DescriptionHash: "",
-		FallbackAddr:    "",
-		CltvExpiry:      0,
-		RouteHints:      nil,
-		PaymentAddr:     payReqToPayData[payReqString.PayReq].payAddress,
-		NumMsat:         1000000,
-		Features:        nil,
+		PaymentHash: pd.hash,
+		PaymentAddr: pd.payAddress,
+		NumMsat:     1000000,
 	}, nil
 }
 
@@ -66,7 +57,6 @@ func (ms *mockService) NewHoldInvoice(hash []byte, amount uint64, swapID string,
 
 	return &invoicesrpc.AddHoldInvoiceResp{
 		PaymentRequest: payReq,
-		AddIndex:       0,
 		PaymentAddr:    bytesAddress,
 	}, nil
 }
@@ -85,13 +75,15 @@ func (ms *mockService) MakeHashPaymentAndMonitor(peerPubKey []byte, chanID uint6
 }
 
 func (ms *mockService) SettleInvoice(msg *invoicesrpc.SettleInvoiceMsg) (*invoicesrpc.SettleInvoiceResp, error) {
+	cb := callBackStack[len(callBackStack)-1]
+	callBackStack = callBackStack[:len(callBackStack)-1]
 	payHash := sha256.Sum256(msg.Preimage[:])
-	go callBackStack[len(callBackStack)-1](&lnrpc.Payment{
+
+	go cb(&lnrpc.Payment{
 		Status:          lnrpc.Payment_SUCCEEDED,
 		PaymentPreimage: hex.EncodeToString(msg.Preimage),
 		PaymentHash:     hex.EncodeToString(payHash[:]),
 	})
-	callBackStack = callBackStack[:len(callBackStack)-1]
 	return nil, nil
 }
 
