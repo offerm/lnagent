@@ -1,12 +1,14 @@
 package lightning
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"github.com/google/uuid"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/invoicesrpc"
+	"github.com/lightningnetwork/lnd/lnwire"
 	"google.golang.org/grpc"
 )
 
@@ -32,7 +34,31 @@ func init() {
 }
 
 func (ms *mockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.PayReq, error) {
+	if payReqString.PayReq == "1111" {
+		return nil, lnwire.NewError()
+	}
 	pd := payReqToPayData[payReqString.PayReq]
+	if payReqString.PayReq == "1234" { //pay hash test
+		return &lnrpc.PayReq{
+			PaymentHash: "1234",
+			PaymentAddr: []byte{},
+			NumMsat:     1000000,
+		}, nil
+	} else if payReqString.PayReq == "5678" { //hex decode test
+		return &lnrpc.PayReq{
+			PaymentHash: "g",
+			PaymentAddr: []byte{},
+			NumMsat:     1000000,
+		}, nil
+	} else if payReqString.PayReq == "2222" {
+		x, _ := hex.DecodeString("1234")
+		return &lnrpc.PayReq{
+			PaymentHash: "1234",
+			PaymentAddr: x,
+			NumMsat:     1000000,
+		}, nil
+
+	}
 	return &lnrpc.PayReq{
 		PaymentHash: pd.hash,
 		PaymentAddr: pd.payAddress,
@@ -62,6 +88,10 @@ func (ms *mockService) NewHoldInvoice(hash []byte, amount uint64, swapID string,
 }
 
 func (ms *mockService) MakeHashPaymentAndMonitor(peerPubKey []byte, chanID uint64, hash []byte, payAddress []byte, amount uint64, cb PaymentCallBack) error {
+	x, _ := hex.DecodeString("1234")
+	if bytes.Equal(peerPubKey, x) {
+		return lnwire.NewError()
+	}
 	callBackStack = append(callBackStack, cb)
 
 	payAddr := hex.EncodeToString(payAddress)
