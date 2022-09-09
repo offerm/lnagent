@@ -32,30 +32,22 @@ func (ms *TestMockService) MakeHashPaymentAndMonitor(peerPubKey []byte, chanID u
 
 func (ms *TestMockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.PayReq, error) {
 	assert.Equal(ms.info.t, ms.info.payReq, payReqString.PayReq)
-	if payReqString.PayReq == "1111" { // invalid payReq test
+	if payReqString.PayReq == "invalidPayReq" { // invalid payReq test
 		return nil, lnwire.NewError()
 	}
 	pd := payReqToPayData[payReqString.PayReq]
-	if payReqString.PayReq == "1234" { //pay hash test
+	if payReqString.PayReq == "swap compare test" { //pay hash test
 		return &lnrpc.PayReq{
 			PaymentHash: "1234",
 			PaymentAddr: []byte{},
 			NumMsat:     1000000,
 		}, nil
-	} else if payReqString.PayReq == "5678" { //hex decode test
+	} else if payReqString.PayReq == "decode" { //hex decode test
 		return &lnrpc.PayReq{
 			PaymentHash: "g",
 			PaymentAddr: []byte{},
 			NumMsat:     1000000,
 		}, nil
-	} else if payReqString.PayReq == "1010" { //check for what
-		x, _ := hex.DecodeString("1234")
-		return &lnrpc.PayReq{
-			PaymentHash: "1234",
-			PaymentAddr: x,
-			NumMsat:     100,
-		}, nil
-
 	}
 	return &lnrpc.PayReq{
 		PaymentHash: pd.hash,
@@ -115,30 +107,22 @@ func init() {
 }
 
 func (ms *mockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.PayReq, error) {
-	if payReqString.PayReq == "1111" {
+	if payReqString.PayReq == "invalidPayReq" {
 		return nil, lnwire.NewError()
 	}
 	pd := payReqToPayData[payReqString.PayReq]
-	if payReqString.PayReq == "1234" { //pay hash test
+	if payReqString.PayReq == "swap compare test" { //pay hash test
 		return &lnrpc.PayReq{
 			PaymentHash: "1234",
 			PaymentAddr: []byte{},
 			NumMsat:     1000000,
 		}, nil
-	} else if payReqString.PayReq == "5678" { //hex decode test
+	} else if payReqString.PayReq == "decode" { //hex decode test
 		return &lnrpc.PayReq{
 			PaymentHash: "g",
 			PaymentAddr: []byte{},
 			NumMsat:     1000000,
 		}, nil
-	} else if payReqString.PayReq == "1010" {
-		x, _ := hex.DecodeString("1234")
-		return &lnrpc.PayReq{
-			PaymentHash: "1234",
-			PaymentAddr: x,
-			NumMsat:     100,
-		}, nil
-
 	}
 	return &lnrpc.PayReq{
 		PaymentHash: pd.hash,
