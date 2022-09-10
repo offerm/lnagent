@@ -1,77 +1,14 @@
 package lightning
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"github.com/google/uuid"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/invoicesrpc"
-	"github.com/lightningnetwork/lnd/lnwire"
-	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
-	"testing"
 )
-
-type TestMockService struct {
-	mockService
-	info *info
-}
-
-func (ms *TestMockService) MakeHashPaymentAndMonitor(peerPubKey []byte, chanID uint64, hash []byte, payAddress []byte, amount uint64, cb PaymentCallBack) error {
-	assert.Equal(ms.info.t, ms.info.toPeerPubKey, peerPubKey)
-	assert.Equal(ms.info.t, ms.info.toChanID, chanID)
-	assert.Equal(ms.info.t, ms.info.amount, amount)
-	x, _ := hex.DecodeString("123")
-	if bytes.Equal(peerPubKey, x) {
-		return lnwire.NewError()
-	}
-	return nil
-}
-
-func (ms *TestMockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.PayReq, error) {
-	assert.Equal(ms.info.t, ms.info.payReq, payReqString.PayReq)
-	if payReqString.PayReq == "invalidPayReq" { // invalid payReq test
-		return nil, lnwire.NewError()
-	}
-	pd := payReqToPayData[payReqString.PayReq]
-	if payReqString.PayReq == "swap compare test" { //pay hash test
-		return &lnrpc.PayReq{
-			PaymentHash: "1234",
-			PaymentAddr: []byte{},
-			NumMsat:     1000000,
-		}, nil
-	} else if payReqString.PayReq == "decode" { //hex decode test
-		return &lnrpc.PayReq{
-			PaymentHash: "g",
-			PaymentAddr: []byte{},
-			NumMsat:     1000000,
-		}, nil
-	}
-	return &lnrpc.PayReq{
-		PaymentHash: pd.hash,
-		PaymentAddr: pd.payAddress,
-		NumMsat:     1000000,
-	}, nil
-
-}
-
-func (ms *TestMockService) SaveInfo(fromPeerPubKey []byte, toPeerPubKey []byte, fromChanID uint64, toChanID uint64, amount uint64, payReq string, t *testing.T) {
-	ms.info = &info{
-		fromPeerPubKey: fromPeerPubKey,
-		toPeerPubKey:   toPeerPubKey,
-		fromChanID:     fromChanID,
-		toChanID:       toChanID,
-		amount:         amount,
-		payReq:         payReq,
-		t:              t,
-	}
-}
-
-func (ms *TestMockService) UpdatePayReq(payReq string) {
-	ms.info.payReq = payReq
-}
 
 type mockService struct {
 }
@@ -83,22 +20,10 @@ type payData struct {
 	memo       string
 }
 
-type info struct {
-	fromPeerPubKey []byte
-	toPeerPubKey   []byte
-	fromChanID     uint64
-	toChanID       uint64
-	amount         uint64
-	swapHash       [32]uint8
-	t              *testing.T
-	payReq         string
-}
-
 var (
 	payReqToPayData     map[string]*payData
 	payAddressToPayData map[string]*payData
 	callBackStack       []PaymentCallBack
-	currInfo            *info
 )
 
 func init() {
@@ -107,23 +32,7 @@ func init() {
 }
 
 func (ms *mockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.PayReq, error) {
-	if payReqString.PayReq == "invalidPayReq" {
-		return nil, lnwire.NewError()
-	}
 	pd := payReqToPayData[payReqString.PayReq]
-	if payReqString.PayReq == "swap compare test" { //pay hash test
-		return &lnrpc.PayReq{
-			PaymentHash: "1234",
-			PaymentAddr: []byte{},
-			NumMsat:     1000000,
-		}, nil
-	} else if payReqString.PayReq == "decode" { //hex decode test
-		return &lnrpc.PayReq{
-			PaymentHash: "g",
-			PaymentAddr: []byte{},
-			NumMsat:     1000000,
-		}, nil
-	}
 	return &lnrpc.PayReq{
 		PaymentHash: pd.hash,
 		PaymentAddr: pd.payAddress,
@@ -153,12 +62,7 @@ func (ms *mockService) NewHoldInvoice(hash []byte, amount uint64, swapID string,
 }
 
 func (ms *mockService) MakeHashPaymentAndMonitor(peerPubKey []byte, chanID uint64, hash []byte, payAddress []byte, amount uint64, cb PaymentCallBack) error {
-	x, _ := hex.DecodeString("123")
-	if bytes.Equal(peerPubKey, x) {
-		return lnwire.NewError()
-	}
 	callBackStack = append(callBackStack, cb)
-
 	payAddr := hex.EncodeToString(payAddress)
 	pd := payAddressToPayData[payAddr]
 	go pd.cb(&lnrpc.Invoice{
