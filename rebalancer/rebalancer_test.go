@@ -43,6 +43,6 @@ func TestRebalancer_TaskInit(t *testing.T) {
 		PaymentRequest: "",
 	})
 	initA := <-events
-	assert.IsType(t, &protobuf.TaskResponse_ErrorType{}, initA.Response)
+	assert.IsType(t, &protobuf.TaskResponse_InitDoneType{}, initA.Response)
 	assert.Equal(t, initA.Swap_ID, string(sid))
 }

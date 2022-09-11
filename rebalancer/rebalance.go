@@ -105,7 +105,7 @@ func (rebalancer *Rebalancer) TaskSwap(swapID SwapID, payment *protobuf.Task_Swa
 	// make sure we don't have an active swap with this ID
 	swap := rebalancer.swaps.Get(swapID)
 	if swap == nil {
-		rebalancer.errorTaskResponse(swap, fmt.Sprintf("swap %v does not exist", swapID))
+		rebalancer.errorTaskResponse(NewSwap(&protobuf.Task_Init{}, swapID), fmt.Sprintf("swap %v does not exist", swapID))
 		return
 	}
 

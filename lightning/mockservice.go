@@ -63,7 +63,6 @@ func (ms *mockService) NewHoldInvoice(hash []byte, amount uint64, swapID string,
 
 func (ms *mockService) MakeHashPaymentAndMonitor(peerPubKey []byte, chanID uint64, hash []byte, payAddress []byte, amount uint64, cb PaymentCallBack) error {
 	callBackStack = append(callBackStack, cb)
-
 	payAddr := hex.EncodeToString(payAddress)
 	pd := payAddressToPayData[payAddr]
 	go pd.cb(&lnrpc.Invoice{
