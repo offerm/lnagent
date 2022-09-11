@@ -33,12 +33,10 @@ func TestTakeSwap(t *testing.T) {
 		name             string
 		initTask         *protobuf.Task_Init
 		swapTask         *protobuf.Task_Swap
-		swapID           SwapID
 		expectedResponse *protobuf.TaskResponse
 	}{
 		{
-			name:   "validPayReq Swap",
-			swapID: sid,
+			name: "validPayReq Swap",
 			initTask: &protobuf.Task_Init{
 				Role: protobuf.Task_INITIATOR,
 				From: &protobuf.Payment{
@@ -68,7 +66,6 @@ func TestTakeSwap(t *testing.T) {
 		{
 			//testing that an error will be returned if the swapID is new during a swap task
 			name:     "unexpected swapID ",
-			swapID:   sid,
 			initTask: nil,
 			swapTask: &protobuf.Task_Swap{
 				PaymentRequest: validPayReq,
@@ -85,8 +82,7 @@ func TestTakeSwap(t *testing.T) {
 		},
 		{
 			//testing that an error will be returned if the role is not initiator
-			name:   "invalid role ",
-			swapID: sid,
+			name: "invalid role ",
 			initTask: &protobuf.Task_Init{
 				Role: protobuf.Task_FOLLOWER,
 				From: &protobuf.Payment{
@@ -119,8 +115,7 @@ func TestTakeSwap(t *testing.T) {
 		},
 		{
 			//testing the response of an error returned from the decodePayReq func
-			name:   "invalid payRequest ",
-			swapID: sid,
+			name: "invalid payRequest ",
 			initTask: &protobuf.Task_Init{
 				Role: protobuf.Task_INITIATOR,
 				From: &protobuf.Payment{
@@ -153,8 +148,7 @@ func TestTakeSwap(t *testing.T) {
 		},
 		{
 			//testing the error of MakeHashPaymentAndMonitor func by setting the To.PeerPubKey to be pubkey123
-			name:   "MakeHashPaymentAndMonitor test",
-			swapID: sid,
+			name: "MakeHashPaymentAndMonitor test",
 			initTask: &protobuf.Task_Init{
 				Role: protobuf.Task_INITIATOR,
 				From: &protobuf.Payment{
@@ -187,8 +181,7 @@ func TestTakeSwap(t *testing.T) {
 		},
 		{
 			//testing the response when the hash returned from the decodePayReq func is different from expected
-			name:   "swap hash compare test",
-			swapID: sid,
+			name: "swap hash compare test",
 			initTask: &protobuf.Task_Init{
 				Role: protobuf.Task_INITIATOR,
 				From: &protobuf.Payment{
@@ -221,8 +214,7 @@ func TestTakeSwap(t *testing.T) {
 		},
 		{
 			//testing the response after an error is returned from the hex decode func
-			name:   "hex decode test",
-			swapID: sid,
+			name: "hex decode test",
 			initTask: &protobuf.Task_Init{
 				Role: protobuf.Task_INITIATOR,
 				From: &protobuf.Payment{
@@ -255,8 +247,7 @@ func TestTakeSwap(t *testing.T) {
 		},
 		{
 			//testing the response when the amount returned from decodePayReq func does not match the expected amount
-			name:   "amount test",
-			swapID: sid,
+			name: "amount test",
 			initTask: &protobuf.Task_Init{
 				Role: protobuf.Task_INITIATOR,
 				From: &protobuf.Payment{
@@ -307,7 +298,7 @@ func TestTakeSwap(t *testing.T) {
 				service.SaveInfo(pubkeyC, pubkeyB, CtoA, AtoB, amount, "", t)
 			}
 
-			rebalancer.TaskSwap(tt.swapID, tt.swapTask)
+			rebalancer.TaskSwap(sid, tt.swapTask)
 			finalResponse, _ := <-rebalancer.events
 			assert.IsType(t, tt.expectedResponse.Response, finalResponse.Response)
 			if finalResponse.GetErrorType() != nil { //error type
@@ -315,6 +306,7 @@ func TestTakeSwap(t *testing.T) {
 			} else {
 				assert.Equal(t, tt.expectedResponse.Response.(*protobuf.TaskResponse_PaymentInitiatedType).PaymentInitiatedType, finalResponse.GetPaymentInitiatedType())
 			}
+			assert.Equal(t, tt.expectedResponse.Swap_ID, finalResponse.Swap_ID)
 
 		})
 	}
