@@ -12,6 +12,14 @@ import (
 )
 
 func TestTakeSwap(t *testing.T) {
+	const (
+		validPayReq       = "validPayReq"
+		emptyPayReq       = ""
+		invalidPayReq     = "invalidPayReq"
+		decodeTestPayReq  = "decode"
+		swapComparePayReq = "swapCompareTestPayReq"
+	)
+
 	pubkeyB, _ := hex.DecodeString("02b998d8c3f065f3e0a8b383bd00dff56aeeac05c52ea2b7a5c936ff8ab2fb369a")
 	pubkeyC, _ := hex.DecodeString("02848fffeb2ebaafdcd6b795b3a45d1e2397181e1c0d4424e86661276bfbe815a9")
 	pubkey123, _ := hex.DecodeString("123")
@@ -20,44 +28,37 @@ func TestTakeSwap(t *testing.T) {
 	amount := uint64(1000 * 1000)
 
 	sid := SwapID(uuid.NewString())
-	newSid := SwapID(uuid.NewString())
-
-	type args struct {
-		initTask *protobuf.Task_Init
-		swapTask *protobuf.Task_Swap
-		swapID   SwapID
-	}
 
 	tests := []struct {
 		name             string
-		args             args
+		initTask         *protobuf.Task_Init
+		swapTask         *protobuf.Task_Swap
+		swapID           SwapID
 		expectedResponse *protobuf.TaskResponse
 	}{
 		{
-			name: "valid Swap",
-			args: args{
-				swapID: sid,
-				initTask: &protobuf.Task_Init{
-					Role: protobuf.Task_INITIATOR,
-					From: &protobuf.Payment{
-						PeerPubKey: pubkeyC,
-						ChanId:     CtoA,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					To: &protobuf.Payment{
-						PeerPubKey: pubkeyB,
-						ChanId:     AtoB,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					PaymentRequest: "",
+			name:   "validPayReq Swap",
+			swapID: sid,
+			initTask: &protobuf.Task_Init{
+				Role: protobuf.Task_INITIATOR,
+				From: &protobuf.Payment{
+					PeerPubKey: pubkeyC,
+					ChanId:     CtoA,
+					AmtMsat:    amount,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
-				swapTask: &protobuf.Task_Swap{
-					PaymentRequest: "normal",
+				To: &protobuf.Payment{
+					PeerPubKey: pubkeyB,
+					ChanId:     AtoB,
+					AmtMsat:    amount,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
+				PaymentRequest: emptyPayReq,
+			},
+			swapTask: &protobuf.Task_Swap{
+				PaymentRequest: validPayReq,
 			},
 			expectedResponse: &protobuf.TaskResponse{
 				Swap_ID:  string(sid),
@@ -65,103 +66,84 @@ func TestTakeSwap(t *testing.T) {
 			},
 		},
 		{
-			name: "new swapID ",
-			args: args{
-				swapID: newSid,
-				initTask: &protobuf.Task_Init{
-					Role: protobuf.Task_INITIATOR,
-					From: &protobuf.Payment{
-						PeerPubKey: pubkeyC,
-						ChanId:     CtoA,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					To: &protobuf.Payment{
-						PeerPubKey: pubkeyB,
-						ChanId:     AtoB,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					PaymentRequest: "",
-				},
-				swapTask: &protobuf.Task_Swap{
-					PaymentRequest: "normal",
-				},
+			//testing that an error will be returned if the swapID is new during a swap task
+			name:     "unexpected swapID ",
+			swapID:   sid,
+			initTask: nil,
+			swapTask: &protobuf.Task_Swap{
+				PaymentRequest: validPayReq,
 			},
+
 			expectedResponse: &protobuf.TaskResponse{
-				Swap_ID: string(newSid),
+				Swap_ID: string(sid),
 				Response: &protobuf.TaskResponse_ErrorType{
 					ErrorType: &protobuf.TaskResponse_Error{
-						Error: fmt.Sprintf("does not exist"),
+						Error: "does not exist",
 					},
 				},
 			},
 		},
 		{
-			name: "invalid role ",
-			args: args{
-				swapID: sid,
-				initTask: &protobuf.Task_Init{
-					Role: protobuf.Task_FOLLOWER,
-					From: &protobuf.Payment{
-						PeerPubKey: pubkeyC,
-						ChanId:     CtoA,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					To: &protobuf.Payment{
-						PeerPubKey: pubkeyB,
-						ChanId:     AtoB,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					PaymentRequest: "invalid role",
+			//testing that an error will be returned if the role is not initiator
+			name:   "invalid role ",
+			swapID: sid,
+			initTask: &protobuf.Task_Init{
+				Role: protobuf.Task_FOLLOWER,
+				From: &protobuf.Payment{
+					PeerPubKey: pubkeyC,
+					ChanId:     CtoA,
+					AmtMsat:    amount,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
-				swapTask: &protobuf.Task_Swap{
-					PaymentRequest: "",
+				To: &protobuf.Payment{
+					PeerPubKey: pubkeyB,
+					ChanId:     AtoB,
+					AmtMsat:    amount,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
+				PaymentRequest: validPayReq,
+			},
+			swapTask: &protobuf.Task_Swap{
+				PaymentRequest: emptyPayReq,
 			},
 			expectedResponse: &protobuf.TaskResponse{
-				Swap_ID: string(newSid),
+				Swap_ID: string(sid),
 				Response: &protobuf.TaskResponse_ErrorType{
 					ErrorType: &protobuf.TaskResponse_Error{
-						Error: fmt.Sprintf("swap can't start by non initiator"),
+						Error: "swap can't start by non initiator",
 					},
 				},
 			},
 		},
 		{
-			name: "invalid payRequest ", //todo merge this with the other branch
-			args: args{
-				swapID: sid,
-				initTask: &protobuf.Task_Init{
-					Role: protobuf.Task_INITIATOR,
-					From: &protobuf.Payment{
-						PeerPubKey: pubkeyC,
-						ChanId:     CtoA,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					To: &protobuf.Payment{
-						PeerPubKey: pubkeyB,
-						ChanId:     AtoB,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					PaymentRequest: "",
+			//testing the response of an error returned from the decodePayReq func
+			name:   "invalid payRequest ",
+			swapID: sid,
+			initTask: &protobuf.Task_Init{
+				Role: protobuf.Task_INITIATOR,
+				From: &protobuf.Payment{
+					PeerPubKey: pubkeyC,
+					ChanId:     CtoA,
+					AmtMsat:    amount,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
-				swapTask: &protobuf.Task_Swap{
-					PaymentRequest: "invalidPayReq",
+				To: &protobuf.Payment{
+					PeerPubKey: pubkeyB,
+					ChanId:     AtoB,
+					AmtMsat:    amount,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
+				PaymentRequest: emptyPayReq,
+			},
+			swapTask: &protobuf.Task_Swap{
+				PaymentRequest: invalidPayReq,
 			},
 			expectedResponse: &protobuf.TaskResponse{
-				Swap_ID: string(newSid),
+				Swap_ID: string(sid),
 				Response: &protobuf.TaskResponse_ErrorType{
 					ErrorType: &protobuf.TaskResponse_Error{
 						Error: fmt.Sprintf("failed to decode payreq invalidPayReq - %v", lnwire.NewError()),
@@ -170,33 +152,32 @@ func TestTakeSwap(t *testing.T) {
 			},
 		},
 		{
-			name: "MakeHashPaymentAndMonitor test",
-			args: args{
-				swapID: sid,
-				initTask: &protobuf.Task_Init{
-					Role: protobuf.Task_INITIATOR,
-					From: &protobuf.Payment{
-						PeerPubKey: pubkeyC,
-						ChanId:     CtoA,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					To: &protobuf.Payment{
-						PeerPubKey: pubkey123,
-						ChanId:     AtoB,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					PaymentRequest: "",
+			//testing the error of MakeHashPaymentAndMonitor func by setting the To.PeerPubKey to be pubkey123
+			name:   "MakeHashPaymentAndMonitor test",
+			swapID: sid,
+			initTask: &protobuf.Task_Init{
+				Role: protobuf.Task_INITIATOR,
+				From: &protobuf.Payment{
+					PeerPubKey: pubkeyC,
+					ChanId:     CtoA,
+					AmtMsat:    amount,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
-				swapTask: &protobuf.Task_Swap{
-					PaymentRequest: "normal",
+				To: &protobuf.Payment{
+					PeerPubKey: pubkey123,
+					ChanId:     AtoB,
+					AmtMsat:    amount,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
+				PaymentRequest: emptyPayReq,
+			},
+			swapTask: &protobuf.Task_Swap{
+				PaymentRequest: validPayReq,
 			},
 			expectedResponse: &protobuf.TaskResponse{
-				Swap_ID: string(newSid),
+				Swap_ID: string(sid),
 				Response: &protobuf.TaskResponse_ErrorType{
 					ErrorType: &protobuf.TaskResponse_Error{
 						Error: fmt.Sprintf("initiator failed to initiate payment - %v ", lnwire.NewError()),
@@ -205,106 +186,103 @@ func TestTakeSwap(t *testing.T) {
 			},
 		},
 		{
-			name: "swap hash compare test",
-			args: args{
-				swapID: sid,
-				initTask: &protobuf.Task_Init{
-					Role: protobuf.Task_INITIATOR,
-					From: &protobuf.Payment{
-						PeerPubKey: pubkeyC,
-						ChanId:     CtoA,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					To: &protobuf.Payment{
-						PeerPubKey: pubkeyB,
-						ChanId:     AtoB,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					PaymentRequest: "",
+			//testing the response when the hash returned from the decodePayReq func is different from expected
+			name:   "swap hash compare test",
+			swapID: sid,
+			initTask: &protobuf.Task_Init{
+				Role: protobuf.Task_INITIATOR,
+				From: &protobuf.Payment{
+					PeerPubKey: pubkeyC,
+					ChanId:     CtoA,
+					AmtMsat:    amount,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
-				swapTask: &protobuf.Task_Swap{
-					PaymentRequest: "swapCompareTest",
+				To: &protobuf.Payment{
+					PeerPubKey: pubkeyB,
+					ChanId:     AtoB,
+					AmtMsat:    amount,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
+				PaymentRequest: emptyPayReq,
+			},
+			swapTask: &protobuf.Task_Swap{
+				PaymentRequest: swapComparePayReq,
 			},
 			expectedResponse: &protobuf.TaskResponse{
-				Swap_ID: string(newSid),
+				Swap_ID: string(sid),
 				Response: &protobuf.TaskResponse_ErrorType{
 					ErrorType: &protobuf.TaskResponse_Error{
-						Error: fmt.Sprintf("wrong hash 1234 received for payment"),
+						Error: "wrong hash 1234 received for payment",
 					},
 				},
 			},
 		},
 		{
-			name: "hex decode test",
-			args: args{
-				swapID: sid,
-				initTask: &protobuf.Task_Init{
-					Role: protobuf.Task_INITIATOR,
-					From: &protobuf.Payment{
-						PeerPubKey: pubkeyC,
-						ChanId:     CtoA,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					To: &protobuf.Payment{
-						PeerPubKey: pubkeyB,
-						ChanId:     AtoB,
-						AmtMsat:    amount,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					PaymentRequest: "",
+			//testing the response after an error is returned from the hex decode func
+			name:   "hex decode test",
+			swapID: sid,
+			initTask: &protobuf.Task_Init{
+				Role: protobuf.Task_INITIATOR,
+				From: &protobuf.Payment{
+					PeerPubKey: pubkeyC,
+					ChanId:     CtoA,
+					AmtMsat:    amount,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
-				swapTask: &protobuf.Task_Swap{
-					PaymentRequest: "decode",
+				To: &protobuf.Payment{
+					PeerPubKey: pubkeyB,
+					ChanId:     AtoB,
+					AmtMsat:    amount,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
+				PaymentRequest: emptyPayReq,
+			},
+			swapTask: &protobuf.Task_Swap{
+				PaymentRequest: decodeTestPayReq,
 			},
 			expectedResponse: &protobuf.TaskResponse{
-				Swap_ID: string(newSid),
+				Swap_ID: string(sid),
 				Response: &protobuf.TaskResponse_ErrorType{
 					ErrorType: &protobuf.TaskResponse_Error{
-						Error: fmt.Sprintf("invalid payment request hash g"),
+						Error: "invalid payment request hash g",
 					},
 				},
 			},
 		},
 		{
-			name: "amount test",
-			args: args{
-				swapID: sid,
-				initTask: &protobuf.Task_Init{
-					Role: protobuf.Task_INITIATOR,
-					From: &protobuf.Payment{
-						PeerPubKey: pubkeyC,
-						ChanId:     CtoA,
-						AmtMsat:    10,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					To: &protobuf.Payment{
-						PeerPubKey: pubkeyB,
-						ChanId:     AtoB,
-						AmtMsat:    10,
-						FeeMsat:    0,
-						TimeLock:   0,
-					},
-					PaymentRequest: "",
+			//testing the response when the amount returned from decodePayReq func does not match the expected amount
+			name:   "amount test",
+			swapID: sid,
+			initTask: &protobuf.Task_Init{
+				Role: protobuf.Task_INITIATOR,
+				From: &protobuf.Payment{
+					PeerPubKey: pubkeyC,
+					ChanId:     CtoA,
+					AmtMsat:    10,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
-				swapTask: &protobuf.Task_Swap{
-					PaymentRequest: "normal",
+				To: &protobuf.Payment{
+					PeerPubKey: pubkeyB,
+					ChanId:     AtoB,
+					AmtMsat:    10,
+					FeeMsat:    0,
+					TimeLock:   0,
 				},
+				PaymentRequest: emptyPayReq,
+			},
+			swapTask: &protobuf.Task_Swap{
+				PaymentRequest: validPayReq,
 			},
 			expectedResponse: &protobuf.TaskResponse{
-				Swap_ID: string(newSid),
+				Swap_ID: string(sid),
 				Response: &protobuf.TaskResponse_ErrorType{
 					ErrorType: &protobuf.TaskResponse_Error{
-						Error: fmt.Sprintf("different amounts. expected 10 invoiced 1000000"),
+						Error: "different amounts. expected 10 invoiced 1000000",
 					},
 				},
 			},
@@ -317,28 +295,25 @@ func TestTakeSwap(t *testing.T) {
 			service := &lightning.TestMockService{}
 			rebalancer := NewRebalancer(events, service)
 
-			service.SaveInfo(pubkeyC, tt.args.initTask.To.PeerPubKey, CtoA, AtoB, tt.args.initTask.To.AmtMsat, tt.args.initTask.PaymentRequest, t)
-
-			rebalancer.TaskInit(sid, tt.args.initTask)
-
-			initA := <-events
-
-			if tt.args.swapTask.PaymentRequest == "normal" {
-				tt.args.swapTask.PaymentRequest = initA.GetInitDoneType().PaymentRequest
+			if tt.initTask != nil {
+				if tt.initTask.Role == protobuf.Task_INITIATOR {
+					service.SaveInfo(pubkeyC, tt.initTask.To.PeerPubKey, CtoA, AtoB, tt.initTask.To.AmtMsat, tt.swapTask.PaymentRequest, t)
+				} else {
+					service.SaveInfo(pubkeyC, tt.initTask.To.PeerPubKey, CtoA, AtoB, tt.initTask.To.AmtMsat, tt.initTask.PaymentRequest, t)
+				}
+				rebalancer.TaskInit(sid, tt.initTask)
+				<-events
+			} else {
+				service.SaveInfo(pubkeyC, pubkeyB, CtoA, AtoB, amount, "", t)
 			}
 
-			service.UpdatePayReq(tt.args.swapTask.PaymentRequest)
-			rebalancer.TaskSwap(tt.args.swapID, tt.args.swapTask)
-			select {
-			case finalResponse, _ := <-rebalancer.events:
-				assert.IsType(t, tt.expectedResponse.Response, finalResponse.Response)
-				if finalResponse.GetErrorType() != nil { //error type
-					assert.Contains(t, finalResponse.Response.(*protobuf.TaskResponse_ErrorType).ErrorType.Error, tt.expectedResponse.Response.(*protobuf.TaskResponse_ErrorType).ErrorType.Error)
-				} else {
-					assert.Equal(t, tt.expectedResponse.Response.(*protobuf.TaskResponse_PaymentInitiatedType).PaymentInitiatedType, finalResponse.GetPaymentInitiatedType())
-				}
-				//default:
-
+			rebalancer.TaskSwap(tt.swapID, tt.swapTask)
+			finalResponse, _ := <-rebalancer.events
+			assert.IsType(t, tt.expectedResponse.Response, finalResponse.Response)
+			if finalResponse.GetErrorType() != nil { //error type
+				assert.Contains(t, finalResponse.Response.(*protobuf.TaskResponse_ErrorType).ErrorType.Error, tt.expectedResponse.Response.(*protobuf.TaskResponse_ErrorType).ErrorType.Error)
+			} else {
+				assert.Equal(t, tt.expectedResponse.Response.(*protobuf.TaskResponse_PaymentInitiatedType).PaymentInitiatedType, finalResponse.GetPaymentInitiatedType())
 			}
 
 		})
