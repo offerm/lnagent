@@ -2,17 +2,19 @@ package lightning
 
 import (
 	"bytes"
+	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"github.com/google/uuid"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/invoicesrpc"
 	"github.com/lightningnetwork/lnd/lnwire"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc"
 	"testing"
 )
 
 type TestMockService struct {
-	mockService
 	info *info
 }
 
@@ -137,4 +139,51 @@ func (ms *TestMockService) SaveInfo(fromPeerPubKey []byte, toPeerPubKey []byte, 
 
 func (ms *TestMockService) UpdatePayReq(payReq string) {
 	ms.info.payReq = payReq
+}
+
+func (ms *TestMockService) SettleInvoice(msg *invoicesrpc.SettleInvoiceMsg) (*invoicesrpc.SettleInvoiceResp, error) {
+	cb := callBackStack[len(callBackStack)-1]
+	callBackStack = callBackStack[:len(callBackStack)-1]
+	payHash := sha256.Sum256(msg.Preimage[:])
+
+	go cb(&lnrpc.Payment{
+		Status:          lnrpc.Payment_SUCCEEDED,
+		PaymentPreimage: hex.EncodeToString(msg.Preimage),
+		PaymentHash:     hex.EncodeToString(payHash[:]),
+	})
+	return nil, nil
+}
+
+func (ms *TestMockService) GetInfo(ctx context.Context, request *lnrpc.GetInfoRequest) (*lnrpc.GetInfoResponse, error) {
+	panic("not supposed to use this func")
+	return nil, nil
+}
+
+func (ms *TestMockService) ListChannels(ctx context.Context, request *lnrpc.ListChannelsRequest) (*lnrpc.ListChannelsResponse, error) {
+	panic("not supposed to use this func")
+	return nil, nil
+}
+
+func (ms *TestMockService) FeeReport(ctx context.Context, request *lnrpc.FeeReportRequest, opts ...grpc.CallOption) (*lnrpc.FeeReportResponse, error) {
+	panic("not supposed to use this func")
+	return nil, nil
+}
+
+func (ms *TestMockService) SignMessage(ctx context.Context, request *lnrpc.SignMessageRequest, opts ...grpc.CallOption) (*lnrpc.SignMessageResponse, error) {
+	panic("not supposed to use this func")
+	return nil, nil
+}
+
+func (ms *TestMockService) ChanInfo(ctx context.Context, request *lnrpc.ChanInfoRequest) (*lnrpc.ChannelEdge, error) {
+	panic("not supposed to use this func")
+	return nil, nil
+}
+
+func (ms *TestMockService) DescribeGraph(ctx context.Context, request *lnrpc.ChannelGraphRequest, opts ...grpc.CallOption) (*lnrpc.ChannelGraph, error) {
+	panic("not supposed to use this func")
+	return nil, nil
+}
+func (ms *TestMockService) Close() {
+	panic("not supposed to use this func")
+	return
 }
