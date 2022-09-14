@@ -1,17 +1,17 @@
-package lightning
+package mocking
 
 import (
-	"encoding/hex"
 	"github.com/google/uuid"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/invoicesrpc"
 	"github.com/lightningnetwork/lnd/lnwire"
+	"github.com/offerm/lnagent/lightning"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 type TestInitMockService struct {
-	mockService
+	baseMockService
 	info *info
 }
 
@@ -38,16 +38,11 @@ func (ms *TestInitMockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*
 			NumMsat:     amount,
 		}, nil
 	default:
-		pd := payReqToPayData[payReqString.PayReq]
-		return &lnrpc.PayReq{
-			PaymentHash: pd.hash,
-			PaymentAddr: pd.payAddress,
-			NumMsat:     amount,
-		}, nil
+		return nil, nil
 	}
 }
 
-func (ms *TestInitMockService) NewHoldInvoice(hash []byte, amount uint64, swapID string, cb InvoiceCallBack) (*invoicesrpc.AddHoldInvoiceResp, error) {
+func (ms *TestInitMockService) NewHoldInvoice(hash []byte, amount uint64, swapID string, cb lightning.InvoiceCallBack) (*invoicesrpc.AddHoldInvoiceResp, error) {
 	// saving the hash to be used in the decodePayReq func
 	ms.info.swapHash = hash
 	payReq := normalPayReq
@@ -57,16 +52,6 @@ func (ms *TestInitMockService) NewHoldInvoice(hash []byte, amount uint64, swapID
 	if swapID == testSID {
 		return nil, lnwire.NewError()
 	}
-
-	currData := payData{
-		hash:       hex.EncodeToString(hash[:]),
-		cb:         cb,
-		payAddress: bytesAddress,
-		memo:       swapID,
-	}
-	payReqToPayData[payReq] = &currData
-	payAddressToPayData[hex.EncodeToString(payReqToPayData[payReq].payAddress)] = &currData
-	payAddressToPayData[payAddress.String()] = payReqToPayData[payReq]
 
 	return &invoicesrpc.AddHoldInvoiceResp{
 		PaymentRequest: payReq,

@@ -1,12 +1,13 @@
-package rebalancer
+package rebalancer_test
 
 import (
 	"encoding/hex"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/lightningnetwork/lnd/lnwire"
-	"github.com/offerm/lnagent/lightning"
 	"github.com/offerm/lnagent/protobuf"
+	"github.com/offerm/lnagent/rebalancer"
+	"github.com/offerm/lnagent/rebalancer/mocking"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -27,13 +28,13 @@ func TestTaskInit(t *testing.T) {
 	CtoA := uint64(2542877924953358337)
 	amount := uint64(1000 * 1000)
 
-	sid := SwapID(uuid.NewString())
-	validSidArr := []SwapID{sid}
-	invalidSidArr := []SwapID{sid, sid}
+	sid := rebalancer.SwapID(uuid.NewString())
+	validSidArr := []rebalancer.SwapID{sid}
+	invalidSidArr := []rebalancer.SwapID{sid, sid}
 
 	tests := []struct {
 		name             string
-		swapIdArr        []SwapID
+		swapIdArr        []rebalancer.SwapID
 		task             *protobuf.Task_Init
 		expectedResponse *protobuf.TaskResponse
 	}{
@@ -222,7 +223,7 @@ func TestTaskInit(t *testing.T) {
 		{
 			//testing the response of an init task getting an error from the newHoldInvoice func
 			name:      "newHoldInvoice error test",
-			swapIdArr: []SwapID{SwapID("5656")},
+			swapIdArr: []rebalancer.SwapID{rebalancer.SwapID("5656")},
 			task: &protobuf.Task_Init{
 				Role: protobuf.Task_INITIATOR,
 				From: &protobuf.Payment{
@@ -254,8 +255,8 @@ func TestTaskInit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			events := make(chan *protobuf.TaskResponse, 1)
-			service := &lightning.TestInitMockService{}
-			rebalancer := NewRebalancer(events, service)
+			service := &mocking.TestInitMockService{}
+			rebalancer := rebalancer.NewRebalancer(events, service)
 
 			for i := range tt.swapIdArr {
 

@@ -8,18 +8,19 @@ import (
 	"github.com/offerm/lnagent/lightning"
 	"github.com/offerm/lnagent/protobuf"
 	"github.com/offerm/lnagent/rebalancer"
+	"github.com/offerm/lnagent/rebalancer/mocking"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestCycle(t *testing.T) {
-	serviceA := lightning.NewMockService(&lightning.Config{})
+	serviceA := mocking.NewMockService(&lightning.Config{})
 	agentA := NewAgent(nil, serviceA)
 
-	serviceB := lightning.NewMockService(&lightning.Config{})
+	serviceB := mocking.NewMockService(&lightning.Config{})
 	agentB := NewAgent(nil, serviceB)
 
-	serviceC := lightning.NewMockService(&lightning.Config{})
+	serviceC := mocking.NewMockService(&lightning.Config{})
 	agentC := NewAgent(nil, serviceC)
 
 	pubkeyA, _ := hex.DecodeString("02aeb304f6282f6ab93bf1b7cfdf0a7e842ccef33455f201484cc3a3d316edabb7")
