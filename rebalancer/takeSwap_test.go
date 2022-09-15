@@ -284,7 +284,7 @@ func TestTakeSwap(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			events := make(chan *protobuf.TaskResponse, 1)
-			service := &mocking.TestMockService{}
+			service := &mocking.SwapMockService{}
 			rebalancer := rebalancer.NewRebalancer(events, service)
 
 			if tt.initTask != nil {

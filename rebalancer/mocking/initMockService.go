@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-type TestInitMockService struct {
+type InitMockService struct {
 	baseMockService
 	info *info
 }
@@ -22,7 +22,7 @@ const (
 	testSID              = "5656"
 )
 
-func (ms *TestInitMockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.PayReq, error) {
+func (ms *InitMockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.PayReq, error) {
 	assert.Equal(ms.info.t, ms.info.payReq, payReqString.PayReq)
 
 	switch payReqString.PayReq {
@@ -42,7 +42,7 @@ func (ms *TestInitMockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*
 	}
 }
 
-func (ms *TestInitMockService) NewHoldInvoice(hash []byte, amount uint64, swapID string, cb lightning.InvoiceCallBack) (*invoicesrpc.AddHoldInvoiceResp, error) {
+func (ms *InitMockService) NewHoldInvoice(hash []byte, amount uint64, swapID string, cb lightning.InvoiceCallBack) (*invoicesrpc.AddHoldInvoiceResp, error) {
 	// saving the hash to be used in the decodePayReq func
 	ms.info.swapHash = hash
 	payReq := normalPayReq
@@ -59,7 +59,7 @@ func (ms *TestInitMockService) NewHoldInvoice(hash []byte, amount uint64, swapID
 	}, nil
 }
 
-func (ms *TestInitMockService) SaveInfo(fromPeerPubKey []byte, toPeerPubKey []byte, fromChanID uint64, toChanID uint64, amount uint64, payReq string, t *testing.T) {
+func (ms *InitMockService) SaveInfo(fromPeerPubKey []byte, toPeerPubKey []byte, fromChanID uint64, toChanID uint64, amount uint64, payReq string, t *testing.T) {
 	ms.info = &info{
 		fromPeerPubKey: fromPeerPubKey,
 		toPeerPubKey:   toPeerPubKey,
