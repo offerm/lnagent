@@ -1,5 +1,3 @@
-# lnagent README
-
 
 # Automatic, Atomic, NO costs channel rebalance
 
