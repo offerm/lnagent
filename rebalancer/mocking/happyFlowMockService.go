@@ -1,21 +1,21 @@
-package lightning
+package mocking
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"github.com/google/uuid"
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/invoicesrpc"
-	"google.golang.org/grpc"
+	"github.com/offerm/lnagent/lightning"
 )
 
-type mockService struct {
+type happyFlowMockService struct {
+	baseMockService
 }
 
 type payData struct {
 	hash       string
-	cb         InvoiceCallBack
+	cb         lightning.InvoiceCallBack
 	payAddress []byte
 	memo       string
 }
@@ -23,7 +23,7 @@ type payData struct {
 var (
 	payReqToPayData     map[string]*payData
 	payAddressToPayData map[string]*payData
-	callBackStack       []PaymentCallBack
+	callBackStack       []lightning.PaymentCallBack
 )
 
 func init() {
@@ -31,7 +31,7 @@ func init() {
 	payAddressToPayData = make(map[string]*payData)
 }
 
-func (ms *mockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.PayReq, error) {
+func (ms *happyFlowMockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.PayReq, error) {
 	pd := payReqToPayData[payReqString.PayReq]
 	return &lnrpc.PayReq{
 		PaymentHash: pd.hash,
@@ -40,7 +40,7 @@ func (ms *mockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.Pa
 	}, nil
 }
 
-func (ms *mockService) NewHoldInvoice(hash []byte, amount uint64, swapID string, cb InvoiceCallBack) (*invoicesrpc.AddHoldInvoiceResp, error) {
+func (ms *happyFlowMockService) NewHoldInvoice(hash []byte, amount uint64, swapID string, cb lightning.InvoiceCallBack) (*invoicesrpc.AddHoldInvoiceResp, error) {
 	payReq := uuid.New().String()
 	payAddress := uuid.New()
 	bytesAddress := []byte(payAddress[:])
@@ -61,7 +61,7 @@ func (ms *mockService) NewHoldInvoice(hash []byte, amount uint64, swapID string,
 	}, nil
 }
 
-func (ms *mockService) MakeHashPaymentAndMonitor(peerPubKey []byte, chanID uint64, hash []byte, payAddress []byte, amount uint64, cb PaymentCallBack) error {
+func (ms *happyFlowMockService) MakeHashPaymentAndMonitor(peerPubKey []byte, chanID uint64, hash []byte, payAddress []byte, amount uint64, cb lightning.PaymentCallBack) error {
 	callBackStack = append(callBackStack, cb)
 	payAddr := hex.EncodeToString(payAddress)
 	pd := payAddressToPayData[payAddr]
@@ -73,7 +73,7 @@ func (ms *mockService) MakeHashPaymentAndMonitor(peerPubKey []byte, chanID uint6
 	return nil
 }
 
-func (ms *mockService) SettleInvoice(msg *invoicesrpc.SettleInvoiceMsg) (*invoicesrpc.SettleInvoiceResp, error) {
+func (ms *happyFlowMockService) SettleInvoice(msg *invoicesrpc.SettleInvoiceMsg) (*invoicesrpc.SettleInvoiceResp, error) {
 	cb := callBackStack[len(callBackStack)-1]
 	callBackStack = callBackStack[:len(callBackStack)-1]
 	payHash := sha256.Sum256(msg.Preimage[:])
@@ -86,34 +86,6 @@ func (ms *mockService) SettleInvoice(msg *invoicesrpc.SettleInvoiceMsg) (*invoic
 	return nil, nil
 }
 
-func (ms *mockService) GetInfo(ctx context.Context, request *lnrpc.GetInfoRequest) (*lnrpc.GetInfoResponse, error) {
-	return nil, nil
-}
-
-func (ms *mockService) ListChannels(ctx context.Context, request *lnrpc.ListChannelsRequest) (*lnrpc.ListChannelsResponse, error) {
-	return nil, nil
-}
-
-func (ms *mockService) FeeReport(ctx context.Context, request *lnrpc.FeeReportRequest, opts ...grpc.CallOption) (*lnrpc.FeeReportResponse, error) {
-	return nil, nil
-}
-
-func (ms *mockService) SignMessage(ctx context.Context, request *lnrpc.SignMessageRequest, opts ...grpc.CallOption) (*lnrpc.SignMessageResponse, error) {
-	return nil, nil
-}
-
-func (ms *mockService) ChanInfo(ctx context.Context, request *lnrpc.ChanInfoRequest) (*lnrpc.ChannelEdge, error) {
-	return nil, nil
-}
-
-func (ms *mockService) DescribeGraph(ctx context.Context, request *lnrpc.ChannelGraphRequest, opts ...grpc.CallOption) (*lnrpc.ChannelGraph, error) {
-
-	return nil, nil
-}
-func (ms *mockService) Close() {
-	return
-}
-
-func NewMockService(config *Config) Service {
-	return &mockService{}
+func NewMockService(config *lightning.Config) lightning.Service {
+	return &happyFlowMockService{}
 }

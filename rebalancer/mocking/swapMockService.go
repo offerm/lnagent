@@ -1,4 +1,4 @@
-package lightning
+package mocking
 
 import (
 	"bytes"
@@ -7,12 +7,13 @@ import (
 	"github.com/lightningnetwork/lnd/lnrpc"
 	"github.com/lightningnetwork/lnd/lnrpc/invoicesrpc"
 	"github.com/lightningnetwork/lnd/lnwire"
+	"github.com/offerm/lnagent/lightning"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-type TestMockService struct {
-	mockService
+type SwapMockService struct {
+	baseMockService
 	info *info
 }
 
@@ -37,7 +38,7 @@ const (
 	valid                     = "validPayReq"
 )
 
-func (ms *TestMockService) MakeHashPaymentAndMonitor(peerPubKey []byte, chanID uint64, hash []byte, payAddress []byte, amount uint64, cb PaymentCallBack) error {
+func (ms *SwapMockService) MakeHashPaymentAndMonitor(peerPubKey []byte, chanID uint64, hash []byte, payAddress []byte, amount uint64, cb lightning.PaymentCallBack) error {
 	assert.Equal(ms.info.t, ms.info.toPeerPubKey, peerPubKey)
 	assert.Equal(ms.info.t, ms.info.toChanID, chanID)
 	assert.Equal(ms.info.t, ms.info.amount, amount)
@@ -50,7 +51,7 @@ func (ms *TestMockService) MakeHashPaymentAndMonitor(peerPubKey []byte, chanID u
 	return nil
 }
 
-func (ms *TestMockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.PayReq, error) {
+func (ms *SwapMockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrpc.PayReq, error) {
 	assert.Equal(ms.info.t, ms.info.payReq, payReqString.PayReq)
 	switch payReqString.PayReq {
 	//for testing the decodePayReq error response
@@ -90,32 +91,17 @@ func (ms *TestMockService) DecodePayReq(payReqString *lnrpc.PayReqString) (*lnrp
 		}, nil
 
 	default:
-		pd := payReqToPayData[payReqString.PayReq]
-		return &lnrpc.PayReq{
-			PaymentHash: pd.hash,
-			PaymentAddr: pd.payAddress,
-			NumMsat:     1000000,
-		}, nil
+		return nil, nil
 
 	}
 }
 
-func (ms *TestMockService) NewHoldInvoice(hash []byte, amount uint64, swapID string, cb InvoiceCallBack) (*invoicesrpc.AddHoldInvoiceResp, error) {
+func (ms *SwapMockService) NewHoldInvoice(hash []byte, amount uint64, swapID string, cb lightning.InvoiceCallBack) (*invoicesrpc.AddHoldInvoiceResp, error) {
 	// saving the hash to be used in the decodePayReq func
 	ms.info.swapHash = hash
 	payReq := uuid.New().String()
 	payAddress := uuid.New()
 	bytesAddress := []byte(payAddress[:])
-
-	currData := payData{
-		hash:       hex.EncodeToString(hash[:]),
-		cb:         cb,
-		payAddress: bytesAddress,
-		memo:       swapID,
-	}
-	payReqToPayData[payReq] = &currData
-	payAddressToPayData[hex.EncodeToString(payReqToPayData[payReq].payAddress)] = &currData
-	payAddressToPayData[payAddress.String()] = payReqToPayData[payReq]
 
 	return &invoicesrpc.AddHoldInvoiceResp{
 		PaymentRequest: payReq,
@@ -123,7 +109,7 @@ func (ms *TestMockService) NewHoldInvoice(hash []byte, amount uint64, swapID str
 	}, nil
 }
 
-func (ms *TestMockService) SaveInfo(fromPeerPubKey []byte, toPeerPubKey []byte, fromChanID uint64, toChanID uint64, amount uint64, payReq string, t *testing.T) {
+func (ms *SwapMockService) SaveInfo(fromPeerPubKey []byte, toPeerPubKey []byte, fromChanID uint64, toChanID uint64, amount uint64, payReq string, t *testing.T) {
 	ms.info = &info{
 		fromPeerPubKey: fromPeerPubKey,
 		toPeerPubKey:   toPeerPubKey,
@@ -135,6 +121,6 @@ func (ms *TestMockService) SaveInfo(fromPeerPubKey []byte, toPeerPubKey []byte, 
 	}
 }
 
-func (ms *TestMockService) UpdatePayReq(payReq string) {
+func (ms *SwapMockService) UpdatePayReq(payReq string) {
 	ms.info.payReq = payReq
 }

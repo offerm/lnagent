@@ -1,12 +1,13 @@
-package rebalancer
+package rebalancer_test
 
 import (
 	"encoding/hex"
 	"fmt"
 	"github.com/google/uuid"
 	"github.com/lightningnetwork/lnd/lnwire"
-	"github.com/offerm/lnagent/lightning"
 	"github.com/offerm/lnagent/protobuf"
+	"github.com/offerm/lnagent/rebalancer"
+	"github.com/offerm/lnagent/rebalancer/mocking"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -27,7 +28,7 @@ func TestTakeSwap(t *testing.T) {
 	CtoA := uint64(2542877924953358337)
 	amount := uint64(1000 * 1000)
 
-	sid := SwapID(uuid.NewString())
+	sid := rebalancer.SwapID(uuid.NewString())
 
 	tests := []struct {
 		name             string
@@ -283,8 +284,8 @@ func TestTakeSwap(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			events := make(chan *protobuf.TaskResponse, 1)
-			service := &lightning.TestMockService{}
-			rebalancer := NewRebalancer(events, service)
+			service := &mocking.SwapMockService{}
+			rebalancer := rebalancer.NewRebalancer(events, service)
 
 			if tt.initTask != nil {
 				if tt.initTask.Role == protobuf.Task_INITIATOR {
@@ -299,7 +300,7 @@ func TestTakeSwap(t *testing.T) {
 			}
 
 			rebalancer.TaskSwap(sid, tt.swapTask)
-			finalResponse, _ := <-rebalancer.events
+			finalResponse, _ := <-events
 			assert.IsType(t, tt.expectedResponse.Response, finalResponse.Response)
 			if finalResponse.GetErrorType() != nil { //error type
 				assert.Contains(t, finalResponse.Response.(*protobuf.TaskResponse_ErrorType).ErrorType.Error, tt.expectedResponse.Response.(*protobuf.TaskResponse_ErrorType).ErrorType.Error)
