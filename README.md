@@ -12,8 +12,8 @@ The `lnagent` project allows automatic, zero costs, rule based rebalancing.
 ## How does it work
 
 There are two main components involved with the solution:
-1. `lnagent` - this open source component is running near the lightning node and has access to it. It collects information from the node, identifies which channels should be rebalanced and share it with the `coordinator`. Once instructed by the `coordinator` the `agent` initiates or participates in an atomic rebalance operation(see below).
-2. `coordinator` - A centralised, proprietary service which collects information from multiple `agents`, identifies a `cricular route of rebalance` and orchestrates the rebalance operation
+1. `lnagent` - this open source component is running near the lightning node and has access to it. It collects information from the node, identifies which channels should be rebalanced and share it with the `coordinator`. Once instructed by the `coordinator` the `agent` initiates or participates in an atomic rebalance operation (see below).
+2. `coordinator` - A centralised, proprietary service which collects information from multiple `agents`, identifies a `circular route of rebalance` and orchestrates the rebalance operation
 
 The system is combined of a single `coordinator` and multiple `agents`.
 
@@ -27,7 +27,7 @@ Every few minutes, the `coordinator` analyses all the rebalance demand from the 
 #### circular route of rebalance
 `circular route of rebalance` is a route from a head node via 1 to N other nodes ending back at the head node. The head node is selected by the `coordinator`. The nodes are connected by channels that need rebalancing.
 
-Example: Using the information from the `agens` the `coordinator` may create this circular route of rebalance -
+Example: Using the information from the `agents` the `coordinator` may create this circular route of rebalance -
 `xyz->def->abc->xyz`
 sending sats along this route will cause all the involved channels to improve their balance situation.
 In an advanced mode the `circular route of rebalance` may include also other nodes and channels that do not need rebalancing and for which the process may need to pay a routing fee.
@@ -40,7 +40,7 @@ The `coordinator` instructs the `agents` to perform a set of separated payments 
 Considering the route
 `xyz->ch1->def->ch2->abc->ch3->xyz`  (circular route of 3 nodes and 3 channels)
 the coordinator appoints `xyz` as the rebalance head. The head creates a random secret and hashes it to get the payment hash.
-The `coordinator` instruct:
+The `coordinator` instructs:
 - `def` - wait for a payment from `xyz` on `ch1`. Once accepted, hold it and pay `abc` on `ch2` using the same hash
 - `abc` - wait for a payment from `def` on `ch2`. Once accepted, hold it and pay `xyz` on `ch3` using the same hash
 - `xyz` - create a secret and payment hash, using that hash pay to `def` on `ch1`. Wait for payment from `abc` on `ch3`. Once the payment arrives, settle it by providing the secret.
@@ -61,7 +61,7 @@ clone this repository
 you can run lnagent with
 >go run cmd/lnagent/main.go
 
-or you can generate the lanaget program
+or you can generate the lnagent program
 
 > go install  ./...
 
