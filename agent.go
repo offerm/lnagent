@@ -22,6 +22,21 @@ type agent struct {
 	coordinatorClient protobuf.CoordinatorClient
 
 	events chan *protobuf.TaskResponse
+
+	cancelCtx  context.Context
+	cancelFunc context.CancelFunc
+	cancelChan chan string
+}
+
+func (agent *agent) Stop() {
+	counter := 0
+	agent.cancelFunc()
+	for counter < 3 {
+		select {
+		case <-agent.cancelChan:
+			counter++
+		}
+	}
 }
 
 func NewAgent(lnagentConfig *Config, lnService lightning.Service) *agent {
@@ -33,6 +48,10 @@ func NewAgent(lnagentConfig *Config, lnService lightning.Service) *agent {
 	agent.lnService = lnService
 
 	agent.rebalancer = rebalancer.NewRebalancer(agent.events, agent.lnService)
+
+	agent.cancelCtx, agent.cancelFunc = context.WithCancel(context.Background())
+
+	agent.cancelChan = make(chan string)
 
 	return agent
 }
@@ -86,6 +105,10 @@ func (agent *agent) loop() {
 				}
 				for {
 					select {
+					case <-agent.cancelCtx.Done():
+						agent.cancelChan <- "go func done"
+						return
+
 					case event, ok := <-agent.events:
 						if !ok {
 							return
@@ -102,14 +125,21 @@ func (agent *agent) loop() {
 				}
 			}()
 			for {
-				task, err := taskClient.Recv()
-				if err != nil {
-					cancel()
-					log.Errorf("got error while waiting for Task - %v", err)
-					time.Sleep(5 * time.Second)
-					break
+				select {
+				case <-agent.cancelCtx.Done():
+					agent.cancelChan <- "go func done"
+					return
+				default:
+					task, err := taskClient.Recv()
+					if err != nil {
+						cancel()
+						log.Errorf("got error while waiting for Task - %v", err)
+						time.Sleep(5 * time.Second)
+						break
+					}
+					agent.executeTask(task)
 				}
-				agent.executeTask(task)
+
 			}
 		}
 
@@ -117,6 +147,10 @@ func (agent *agent) loop() {
 
 	for {
 		select {
+		case <-agent.cancelCtx.Done():
+			agent.cancelChan <- "main thread done"
+			return
+
 		case <-infoTicker:
 			info, err := agent.lnService.GetInfo(ctxt, &lnrpc.GetInfoRequest{})
 			if err != nil {
