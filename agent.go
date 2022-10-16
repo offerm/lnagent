@@ -31,7 +31,7 @@ type agent struct {
 func (agent *agent) Stop() {
 	counter := 0
 	agent.cancelFunc()
-	for counter < 3 {
+	for counter < 2 { //todo change to <3 when coordinator is working
 		select {
 		case <-agent.cancelChan:
 			counter++
@@ -87,49 +87,49 @@ func (agent *agent) loop() {
 
 	go func() {
 		for {
-			md := metadata.Pairs("pubkey", agent.getPubKey())
-			ctx := metadata.NewOutgoingContext(context.Background(), md)
-			taskClient, err := agent.coordinatorClient.Tasks(ctx)
-			if err != nil {
-				log.Errorf("failed to open Tasks feed with lncoordinator - %v", err)
-				time.Sleep(5 * time.Second)
-				continue
-			}
-			log.Info("Tasks feed established")
-			ctx, cancel := context.WithCancel(context.Background())
-			go func() {
-				defer log.Info("stop sending events to coordinator")
-				log.Infof("start sending events to coordinator")
-				if agent.lnagentConfig == nil {
-					return
+			select {
+			case <-agent.cancelCtx.Done():
+				agent.cancelChan <- "go func done1"
+				return
+			default:
+				md := metadata.Pairs("pubkey", agent.getPubKey())
+				ctx := metadata.NewOutgoingContext(context.Background(), md)
+				taskClient, err := agent.coordinatorClient.Tasks(ctx)
+				if err != nil {
+					log.Errorf("failed to open Tasks feed with lncoordinator - %v", err)
+					time.Sleep(5 * time.Second)
+					continue
 				}
-				for {
-					select {
-					case <-agent.cancelCtx.Done():
-						agent.cancelChan <- "go func done"
-						return
-
-					case event, ok := <-agent.events:
-						if !ok {
-							return
-						}
-						log.Tracef("sending event %v", reflect.TypeOf(event.Response))
-						err := taskClient.Send(event)
-						if err != nil {
-							log.Errorf("failed to send to %v swayID %v - %v", event.Pubkey, event.Swap_ID, err)
-						}
-					case <-ctx.Done():
+				log.Info("Tasks feed established")
+				ctx, cancel := context.WithCancel(context.Background())
+				go func() {
+					defer log.Info("stop sending events to coordinator")
+					log.Infof("start sending events to coordinator")
+					if agent.lnagentConfig == nil {
 						return
 					}
+					for {
+						select {
+						case <-agent.cancelCtx.Done():
+							agent.cancelChan <- "go func done2"
+							return
 
-				}
-			}()
-			for {
-				select {
-				case <-agent.cancelCtx.Done():
-					agent.cancelChan <- "go func done"
-					return
-				default:
+						case event, ok := <-agent.events:
+							if !ok {
+								return
+							}
+							log.Tracef("sending event %v", reflect.TypeOf(event.Response))
+							err := taskClient.Send(event)
+							if err != nil {
+								log.Errorf("failed to send to %v swayID %v - %v", event.Pubkey, event.Swap_ID, err)
+							}
+						case <-ctx.Done():
+							return
+						}
+
+					}
+				}()
+				for {
 					task, err := taskClient.Recv()
 					if err != nil {
 						cancel()
@@ -141,6 +141,7 @@ func (agent *agent) loop() {
 				}
 
 			}
+
 		}
 
 	}()
