@@ -11,16 +11,15 @@ import (
 )
 
 func TestStoppableAgent(t *testing.T) {
-	startGoRoutins := runtime.NumGoroutine()
+	startGoRoutines := runtime.NumGoroutine()
 	agent := NewAgent(&Config{Host: "127.0.0.1", Port: 8888}, mocking.NewAgentMockService())
 	go func() {
-		time.Sleep(11 * time.Second)
-		// 2 new goroutines added by the loop func (not 3 - no connection to coordinator)
-		// 1 new goroutine added by this test
-		assert.Equal(t, startGoRoutins+3, runtime.NumGoroutine())
-		agent.Stop()
-		assert.Equal(t, startGoRoutins+1, runtime.NumGoroutine()) // no new goroutines left except this new one
-
+		agent.Run()
 	}()
-	agent.Run()
+
+	agent.Stop()
+	time.Sleep(10 * time.Millisecond)
+	println(runtime.NumGoroutine())
+	assert.Equal(t, startGoRoutines, runtime.NumGoroutine()) // no new goroutines
+
 }

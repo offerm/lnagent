@@ -10,8 +10,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/metadata"
 	"reflect"
+	"sync"
 	"time"
 )
+
+type emptyObject struct{}
 
 // TODO: handle cleanup on startup
 type agent struct {
@@ -25,18 +28,13 @@ type agent struct {
 
 	cancelCtx  context.Context
 	cancelFunc context.CancelFunc
-	cancelChan chan string
+	// todo: change to empty object
+	done chan emptyObject
 }
 
 func (agent *agent) Stop() {
-	counter := 0
 	agent.cancelFunc()
-	for counter < 2 { //todo change to <3 when coordinator is working
-		select {
-		case <-agent.cancelChan:
-			counter++
-		}
-	}
+	<-agent.done
 }
 
 func NewAgent(lnagentConfig *Config, lnService lightning.Service) *agent {
@@ -51,7 +49,7 @@ func NewAgent(lnagentConfig *Config, lnService lightning.Service) *agent {
 
 	agent.cancelCtx, agent.cancelFunc = context.WithCancel(context.Background())
 
-	agent.cancelChan = make(chan string)
+	agent.done = make(chan emptyObject)
 
 	return agent
 }
@@ -61,11 +59,14 @@ func (agent *agent) Run() error {
 	log.Info("agent is starting")
 
 	conn := GetLNCClientConn(agent.lnagentConfig)
+	defer conn.Close()
 	agent.coordinatorClient = protobuf.NewCoordinatorClient(conn)
 	//agent.cancelOneSidePendingHoldInvoices()
 	agent.loop()
 
 	agent.lnService.Close()
+
+	agent.done <- emptyObject{}
 
 	//agent.Cleanup()
 	return nil
@@ -82,18 +83,21 @@ func (agent *agent) getPubKey() string {
 }
 
 func (agent *agent) loop() {
+	wg := sync.WaitGroup{}
 	ctxt := context.Background()
 	infoTicker := time.Tick(10 * time.Second)
+	defer func() { agent.coordinatorClient = nil }()
 
 	go func() {
+		wg.Add(1)
 		for {
 			select {
 			case <-agent.cancelCtx.Done():
-				agent.cancelChan <- "go func done1"
+				wg.Done()
 				return
 			default:
 				md := metadata.Pairs("pubkey", agent.getPubKey())
-				ctx := metadata.NewOutgoingContext(context.Background(), md)
+				ctx := metadata.NewOutgoingContext(agent.cancelCtx, md)
 				taskClient, err := agent.coordinatorClient.Tasks(ctx)
 				if err != nil {
 					log.Errorf("failed to open Tasks feed with lncoordinator - %v", err)
@@ -101,8 +105,9 @@ func (agent *agent) loop() {
 					continue
 				}
 				log.Info("Tasks feed established")
-				ctx, cancel := context.WithCancel(context.Background())
+				ctx, cancel := context.WithCancel(agent.cancelCtx)
 				go func() {
+					wg.Add(1)
 					defer log.Info("stop sending events to coordinator")
 					log.Infof("start sending events to coordinator")
 					if agent.lnagentConfig == nil {
@@ -110,10 +115,6 @@ func (agent *agent) loop() {
 					}
 					for {
 						select {
-						case <-agent.cancelCtx.Done():
-							agent.cancelChan <- "go func done2"
-							return
-
 						case event, ok := <-agent.events:
 							if !ok {
 								return
@@ -124,6 +125,7 @@ func (agent *agent) loop() {
 								log.Errorf("failed to send to %v swayID %v - %v", event.Pubkey, event.Swap_ID, err)
 							}
 						case <-ctx.Done():
+							wg.Done()
 							return
 						}
 
@@ -131,13 +133,21 @@ func (agent *agent) loop() {
 				}()
 				for {
 					task, err := taskClient.Recv()
-					if err != nil {
+					select {
+					case <-agent.cancelCtx.Done():
 						cancel()
-						log.Errorf("got error while waiting for Task - %v", err)
-						time.Sleep(5 * time.Second)
-						break
+						wg.Done()
+						return
+					default:
+						if err != nil {
+							cancel()
+							log.Errorf("got error while waiting for Task - %v", err)
+							time.Sleep(5 * time.Second)
+							break
+						}
+						agent.executeTask(task)
+
 					}
-					agent.executeTask(task)
 				}
 
 			}
@@ -149,7 +159,7 @@ func (agent *agent) loop() {
 	for {
 		select {
 		case <-agent.cancelCtx.Done():
-			agent.cancelChan <- "main thread done"
+			wg.Wait()
 			return
 
 		case <-infoTicker:
