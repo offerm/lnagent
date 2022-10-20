@@ -19,7 +19,21 @@ func TestStoppableAgent(t *testing.T) {
 
 	agent.Stop()
 	time.Sleep(10 * time.Millisecond)
-	println(runtime.NumGoroutine())
-	assert.Equal(t, startGoRoutines, runtime.NumGoroutine()) // no new goroutines
+	assert.Equal(t, startGoRoutines+1, runtime.NumGoroutine()) // no new goroutines
+
+}
+
+func TestSignalStoppableAgent(t *testing.T) {
+	startGoRoutines := runtime.NumGoroutine()
+	agent := NewAgent(&Config{Host: "127.0.0.1", Port: 8888}, mocking.NewAgentMockService())
+	go func() {
+		agent.Run()
+	}()
+
+	time.Sleep(10 * time.Millisecond)
+
+	//agent.signalChan <- os.Interrupt
+
+	assert.Equal(t, startGoRoutines+1, runtime.NumGoroutine()) // no new goroutines
 
 }

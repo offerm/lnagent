@@ -9,6 +9,8 @@ import (
 	"github.com/offerm/lnagent/rebalancer"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/metadata"
+	"os"
+	"os/signal"
 	"reflect"
 	"sync"
 	"time"
@@ -26,10 +28,27 @@ type agent struct {
 
 	events chan *protobuf.TaskResponse
 
+	signalChan chan os.Signal
 	cancelCtx  context.Context
 	cancelFunc context.CancelFunc
-	// todo: change to empty object
-	done chan emptyObject
+	done       chan emptyObject
+}
+
+func (agent *agent) waitForSignal() {
+
+	signal.Notify(agent.signalChan, os.Interrupt)
+	go func() {
+		select {
+		case <-agent.signalChan:
+			log.Infof(" signal recived - agent is stopping")
+			agent.Stop()
+
+		case <-agent.cancelCtx.Done():
+			signal.Stop(agent.signalChan)
+			return
+		}
+
+	}()
 }
 
 func (agent *agent) Stop() {
@@ -50,6 +69,10 @@ func NewAgent(lnagentConfig *Config, lnService lightning.Service) *agent {
 	agent.cancelCtx, agent.cancelFunc = context.WithCancel(context.Background())
 
 	agent.done = make(chan emptyObject)
+
+	agent.signalChan = make(chan os.Signal, 1)
+
+	agent.waitForSignal()
 
 	return agent
 }
