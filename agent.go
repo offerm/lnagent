@@ -9,9 +9,14 @@ import (
 	"github.com/offerm/lnagent/rebalancer"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/metadata"
+	"os"
+	"os/signal"
 	"reflect"
+	"sync"
 	"time"
 )
+
+type emptyObject struct{}
 
 // TODO: handle cleanup on startup
 type agent struct {
@@ -22,6 +27,33 @@ type agent struct {
 	coordinatorClient protobuf.CoordinatorClient
 
 	events chan *protobuf.TaskResponse
+
+	signalChan chan os.Signal
+	cancelCtx  context.Context
+	cancelFunc context.CancelFunc
+	done       chan emptyObject
+}
+
+func (agent *agent) waitForSignal() {
+
+	signal.Notify(agent.signalChan, os.Interrupt)
+	go func() {
+		select {
+		case <-agent.signalChan:
+			log.Infof(" signal recived - agent is stopping")
+			agent.Stop()
+
+		case <-agent.cancelCtx.Done():
+			signal.Stop(agent.signalChan)
+			return
+		}
+
+	}()
+}
+
+func (agent *agent) Stop() {
+	agent.cancelFunc()
+	<-agent.done
 }
 
 func NewAgent(lnagentConfig *Config, lnService lightning.Service) *agent {
@@ -34,6 +66,14 @@ func NewAgent(lnagentConfig *Config, lnService lightning.Service) *agent {
 
 	agent.rebalancer = rebalancer.NewRebalancer(agent.events, agent.lnService)
 
+	agent.cancelCtx, agent.cancelFunc = context.WithCancel(context.Background())
+
+	agent.done = make(chan emptyObject)
+
+	agent.signalChan = make(chan os.Signal, 1)
+
+	agent.waitForSignal()
+
 	return agent
 }
 
@@ -42,11 +82,14 @@ func (agent *agent) Run() error {
 	log.Info("agent is starting")
 
 	conn := GetLNCClientConn(agent.lnagentConfig)
+	defer conn.Close()
 	agent.coordinatorClient = protobuf.NewCoordinatorClient(conn)
 	//agent.cancelOneSidePendingHoldInvoices()
 	agent.loop()
 
 	agent.lnService.Close()
+
+	agent.done <- emptyObject{}
 
 	//agent.Cleanup()
 	return nil
@@ -63,60 +106,85 @@ func (agent *agent) getPubKey() string {
 }
 
 func (agent *agent) loop() {
+	wg := sync.WaitGroup{}
 	ctxt := context.Background()
 	infoTicker := time.Tick(10 * time.Second)
+	defer func() { agent.coordinatorClient = nil }()
 
 	go func() {
+		wg.Add(1)
 		for {
-			md := metadata.Pairs("pubkey", agent.getPubKey())
-			ctx := metadata.NewOutgoingContext(context.Background(), md)
-			taskClient, err := agent.coordinatorClient.Tasks(ctx)
-			if err != nil {
-				log.Errorf("failed to open Tasks feed with lncoordinator - %v", err)
-				time.Sleep(5 * time.Second)
-				continue
-			}
-			log.Info("Tasks feed established")
-			ctx, cancel := context.WithCancel(context.Background())
-			go func() {
-				defer log.Info("stop sending events to coordinator")
-				log.Infof("start sending events to coordinator")
-				if agent.lnagentConfig == nil {
-					return
+			select {
+			case <-agent.cancelCtx.Done():
+				wg.Done()
+				return
+			default:
+				md := metadata.Pairs("pubkey", agent.getPubKey())
+				ctx := metadata.NewOutgoingContext(agent.cancelCtx, md)
+				taskClient, err := agent.coordinatorClient.Tasks(ctx)
+				if err != nil {
+					log.Errorf("failed to open Tasks feed with lncoordinator - %v", err)
+					time.Sleep(5 * time.Second)
+					continue
 				}
-				for {
-					select {
-					case event, ok := <-agent.events:
-						if !ok {
-							return
-						}
-						log.Tracef("sending event %v", reflect.TypeOf(event.Response))
-						err := taskClient.Send(event)
-						if err != nil {
-							log.Errorf("failed to send to %v swayID %v - %v", event.Pubkey, event.Swap_ID, err)
-						}
-					case <-ctx.Done():
+				log.Info("Tasks feed established")
+				ctx, cancel := context.WithCancel(agent.cancelCtx)
+				go func() {
+					wg.Add(1)
+					defer log.Info("stop sending events to coordinator")
+					log.Infof("start sending events to coordinator")
+					if agent.lnagentConfig == nil {
 						return
 					}
+					for {
+						select {
+						case event, ok := <-agent.events:
+							if !ok {
+								return
+							}
+							log.Tracef("sending event %v", reflect.TypeOf(event.Response))
+							err := taskClient.Send(event)
+							if err != nil {
+								log.Errorf("failed to send to %v swayID %v - %v", event.Pubkey, event.Swap_ID, err)
+							}
+						case <-ctx.Done():
+							wg.Done()
+							return
+						}
 
+					}
+				}()
+				for {
+					task, err := taskClient.Recv()
+					select {
+					case <-agent.cancelCtx.Done():
+						cancel()
+						wg.Done()
+						return
+					default:
+						if err != nil {
+							cancel()
+							log.Errorf("got error while waiting for Task - %v", err)
+							time.Sleep(5 * time.Second)
+							break
+						}
+						agent.executeTask(task)
+
+					}
 				}
-			}()
-			for {
-				task, err := taskClient.Recv()
-				if err != nil {
-					cancel()
-					log.Errorf("got error while waiting for Task - %v", err)
-					time.Sleep(5 * time.Second)
-					break
-				}
-				agent.executeTask(task)
+
 			}
+
 		}
 
 	}()
 
 	for {
 		select {
+		case <-agent.cancelCtx.Done():
+			wg.Wait()
+			return
+
 		case <-infoTicker:
 			info, err := agent.lnService.GetInfo(ctxt, &lnrpc.GetInfoRequest{})
 			if err != nil {
